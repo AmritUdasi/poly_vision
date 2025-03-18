@@ -22,18 +22,21 @@ class BlockchainService:
         # Add PoA middleware for Polygon
         self.w3.middleware_onion.inject(geth_poa_middleware, layer=0)
 
-    async def get_block_with_transactions(
-        self, block_number: int
-    ) -> Optional[BlockData]:
+    async def get_block_with_transactions(self, block_number: int):
         """Fetch block data with transactions."""
         try:
             block = self.w3.eth.get_block(block_number, full_transactions=True)
+            # print(f'''blockkkkkkkkkkkkkkkkkkkkdatat{block=}''')
+            
+            # Keep timestamp as datetime object
+            timestamp = datetime.fromtimestamp(block.timestamp)
+            return block
             return BlockData(
                 number=block_number,
                 hash=block.hash.hex(),
                 parent_hash=block.parentHash.hex(),
                 nonce=block.nonce.hex(),
-                timestamp=datetime.fromtimestamp(block.timestamp),
+                timestamp=timestamp,  # Pass datetime object, not string
                 transactions_root=block.transactionsRoot.hex(),
                 state_root=block.stateRoot.hex(),
                 receipts_root=block.receiptsRoot.hex(),

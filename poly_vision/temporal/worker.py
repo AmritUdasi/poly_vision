@@ -18,7 +18,7 @@ from poly_vision.utils.config import load_config
 async def start_temporal_worker(worker_names):
     config = load_config()
     db_service = DatabaseService(config.database)
-    await db_service.connect()
+    await db_service.prisma.connect()
     print(settings.TEMPORAL_HOST)
     client = await Client.connect(settings.TEMPORAL_HOST, namespace="default")
     await monitor_system_scheduler()

@@ -14,13 +14,12 @@ with workflow.unsafe.imports_passed_through():
 @workflow.defn
 class BlockchainIndexerWorkflow:
     @workflow.run
-    async def run(self, batch_size: int = 10) -> Dict[str, Any]:
+    async def run(self, batch_size: int = 10):
         latest_info = await workflow.execute_activity(
             get_latest_blocks,
             start_to_close_timeout=timedelta(seconds=30),
             retry_policy=RetryPolicy(maximum_attempts=3),
         )
-        return latest_info
 
         start_block = (
             latest_info["db_block"] + 1
@@ -38,6 +37,7 @@ class BlockchainIndexerWorkflow:
                 schedule_to_close_timeout=timedelta(minutes=5),
                 retry_policy=RetryPolicy(maximum_attempts=3),
             )
+            return result
 
             if result["status"] == IndexingStatus.COMPLETED:
                 start_block = end_block + 1

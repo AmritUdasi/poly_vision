@@ -32,7 +32,7 @@ async def create_blockchain_scheduler(client):
                 intervals=[ScheduleIntervalSpec(every=timedelta(seconds=60))]
             ),
             policy=SchedulePolicy(
-                overlap=ScheduleOverlapPolicy.SKIP, catchup_window=timedelta(minutes=10)
+                overlap=ScheduleOverlapPolicy.SKIP, catchup_window=timedelta(minutes=1)
             ),
         ),
     )

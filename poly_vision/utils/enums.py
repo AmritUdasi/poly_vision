@@ -47,6 +47,19 @@ class BlockData(BaseModel):
     base_fee_per_gas: Optional[int]
     transaction_count: int
 
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat(),
+        }
+
+    def dict(self, *args, **kwargs):
+        # Convert all values to JSON serializable format
+        d = super().dict(*args, **kwargs)
+        # Convert any large integers to strings to avoid JSON serialization issues
+        d['difficulty'] = str(d['difficulty'])
+        d['total_difficulty'] = str(d['total_difficulty'])
+        return d
+
 class TransactionData(BaseModel):
     """Transaction data validation model."""
     hash: str
