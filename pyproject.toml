@@ -1,0 +1,33 @@
+[tool.poetry]
+name = "poly_vision"
+version = "0.0.4"
+description = ""
+authors = ["AlfreHQ"]
+readme = "README.md"
+package-mode = true
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.11"
+flask = "^3.0.2"
+black = "^24.2.0"
+docformatter = "^1.7.5"
+mypy = "^1.9.0"
+ruff = "^0.3.2"
+types-pytz = "^2023.3"
+types-requests = "^2.31"
+types-toml = "^0.10.2"
+asyncio = "3.4.3"
+prisma = "0.9.0"
+dynaconf = "^3.2.4"
+psycopg2-binary = "^2.9.9"
+temporalio = "1.2.0"
+pandas = "2.0.3"
+pydantic = "1.10.11"
+urllib3 = "^1.26.19"
+web3 = "^6.15.1"
+eth-typing = "^3.5.2"
+eth-utils = "^2.3.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

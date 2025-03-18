@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:14.5-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    volumes:
+      - poly_vision_data:/var/lib/postgresql/data
+    networks:
+      - poly_vision
+
+  temporal:
+    image: temporalio/auto-setup:1.18.0
+    container_name: temporal
+    depends_on:
+      - postgres
+    env_file:
+      - .env
+    networks:
+      - poly_vision
+    ports:
+      - 7233:7233
+
+  temporal-ui:
+    image: temporalio/ui:2.32.0
+    container_name: temporal-ui
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=${TEMPORAL_HOST}
+    networks:
+      - poly_vision
+    ports:
+      - 8080:8080
+
+  temporal-worker:
+    container_name: temporal-worker
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    depends_on:
+      - temporal
+      - postgres
+    volumes:
+      - ./poly_vision/temporal/supervisor/dev.conf:/app/poly_vision/temporal/supervisor/dev.conf
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    ports:
+      - 8000:5000
+    networks:
+      - poly_vision
+    restart: unless-stopped
+
+volumes:
+  poly_vision_data:
+
+networks:
+  poly_vision:
+    driver: bridge
+    name: poly_vision

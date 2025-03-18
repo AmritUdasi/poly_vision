@@ -1,0 +1,115 @@
+generator client {
+    provider                    = "prisma-client-py"
+    interface                   = "asyncio"
+    recursive_type_depth        = "5"
+    previewFeatures             = ["views"]
+    enable_experimental_decimal = true
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model blocks {
+    timestamp         DateTime @db.Timestamp()
+    number            Int
+    hash              String   @unique
+    parent_hash       String?
+    nonce             String
+    sha3_uncles       String?
+    logs_bloom        String?
+    transactions_root String?
+    state_root        String?
+    receipts_root     String?
+    miner             String?
+    difficulty        Decimal?
+    total_difficulty  Decimal?
+    size              Int?
+    extra_data        String?
+    gas_limit         Int?
+    gas_used          Int?
+    transaction_count Int?
+    base_fee_per_gas  Int?
+
+    @@id([number])
+}
+
+model contracts {
+    address            String   @id
+    bytecode           String?
+    function_sighashes String[]
+    is_erc20           Boolean?
+    is_erc721          Boolean?
+    block_timestamp    DateTime @db.Timestamp()
+    block_number       Int
+    block_hash         String
+
+    @@index([block_number])
+}
+
+model transactions {
+    hash                        String   @id
+    nonce                       Int
+    transaction_index           Int
+    from_address                String
+    to_address                  String?
+    value                       Decimal?
+    gas                         Int?
+    gas_price                   Int?
+    input                       String?
+    receipt_cumulative_gas_used Int?
+    receipt_gas_used            Int?
+    receipt_contract_address    String?
+    receipt_root                String?
+    receipt_status              Int?
+    block_timestamp             DateTime @db.Timestamp()
+    block_number                Int
+    block_hash                  String
+    max_fee_per_gas             Int?
+    max_priority_fee_per_gas    Int?
+    transaction_type            Int?
+    receipt_effective_gas_price Int?
+
+    @@index([block_number])
+    @@index([from_address])
+    @@index([to_address])
+}
+
+model traces {
+    transaction_hash  String?
+    transaction_index Int?
+    from_address      String?
+    to_address        String?
+    value             String?
+    input             String?
+    output            String?
+    trace_type        String
+    call_type         String?
+    reward_type       String?
+    gas               Int?
+    gas_used          Int?
+    subtraces         Int?
+    trace_address     String?
+    error             String?
+    status            Int?
+    trace_id          String
+    block_timestamp   DateTime @db.Timestamp()
+    block_number      Int
+    block_hash        String
+
+    @@id([block_number, trace_id])
+    @@index([transaction_hash])
+    @@index([from_address])
+    @@index([to_address])
+    @@index([trace_type])
+}
+
+model exchange_labels {
+    address  String  @id
+    exchange String
+    label    String?
+    source   String?
+
+    @@index([exchange])
+}
