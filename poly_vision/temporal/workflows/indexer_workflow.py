@@ -1,13 +1,11 @@
 from datetime import timedelta
 from temporalio import workflow
 from temporalio.common import RetryPolicy
-from typing import List
 import asyncio
 
 with workflow.unsafe.imports_passed_through():
-    from poly_vision.utils.enums import IndexingStatus, IndexingResult
     from poly_vision.temporal.activities.indexer_activity import (
-        index_block,
+        index_block_range,
         get_latest_blocks,
     )
 
@@ -15,7 +13,7 @@ with workflow.unsafe.imports_passed_through():
 @workflow.defn
 class BlockchainIndexerWorkflow:
     @workflow.run
-    async def run(self, batch_size: int = 10):
+    async def run(self, batch_size: int = 10, max_concurrent: int = 5):
         # Get latest block info
         latest_info = await workflow.execute_activity(
             get_latest_blocks,
@@ -32,42 +30,40 @@ class BlockchainIndexerWorkflow:
 
         total_processed = 0
         total_successful = 0
+        failed_blocks = []
 
         while start_block <= chain_block:
             end_block = min(start_block + batch_size - 1, chain_block)
 
-            # Create concurrent activities for each block in the range
-            block_activities = []
-            for block_num in range(start_block, end_block + 1):
-                activity = workflow.execute_activity(
-                    index_block,
-                    args=[block_num],
-                    schedule_to_close_timeout=timedelta(minutes=2),
-                    retry_policy=RetryPolicy(maximum_attempts=1),
-                    start_to_close_timeout=timedelta(minutes=1),
-                )
-                block_activities.append(activity)
-
-            # Wait for all block activities to complete
             try:
-                results = await asyncio.gather(*block_activities)
+                # Process a range of blocks
+                range_result = await workflow.execute_activity(
+                    index_block_range,
+                    args=[start_block, end_block, None, max_concurrent],
+                    schedule_to_close_timeout=timedelta(minutes=5),
+                    retry_policy=RetryPolicy(maximum_attempts=2),
+                    start_to_close_timeout=timedelta(minutes=3),
+                )
 
-                # Process results - a result is successful if it's an integer (block number)
-                successful_blocks = sum(1 for r in results if isinstance(r, int))
-
-                total_processed += len(results)
-                total_successful += successful_blocks
+                # Update statistics from the result
+                total_processed += range_result["blocks_processed"]
+                total_successful += range_result["blocks_successful"]
+                
+                if range_result["failed_blocks"]:
+                    failed_blocks.extend(range_result["failed_blocks"])
+                    workflow.logger.warn(
+                        f"Failed blocks in range {start_block}-{end_block}: {range_result['failed_blocks']}"
+                    )
 
                 # Log progress
                 workflow.logger.info(
                     f"Processed blocks {start_block}-{end_block}: "
-                    f"{successful_blocks}/{len(results)} successful"
+                    f"{range_result['blocks_successful']}/{range_result['blocks_processed']} successful"
                 )
 
             except Exception as e:
-                workflow.logger.error(
-                    f"Error processing blocks {start_block}-{end_block}: {str(e)}"
-                )
+                workflow.logger.error(f"Failed to process range {start_block}-{end_block}: {str(e)}")
+                failed_blocks.append({"block_range": [start_block, end_block], "error": str(e)})
 
             # Update start_block for next batch
             start_block = end_block + 1
@@ -80,4 +76,5 @@ class BlockchainIndexerWorkflow:
             "last_indexed_block": chain_block,
             "total_blocks_processed": total_processed,
             "successful_blocks": total_successful,
+            "failed_blocks": failed_blocks,
         }

@@ -4,13 +4,6 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
-class IndexingStatus(Enum):
-    SUCCESS = "success"
-    ERROR = "error"
-    PENDING = "pending"
-    COMPLETED = "completed"
-    SKIPPED = "skipped"
-
 class TransactionType(Enum):
     LEGACY = 0
     ACCESS_LIST = 1
@@ -20,13 +13,6 @@ class BlockchainNetwork(Enum):
     POLYGON_MAINNET = 137
     POLYGON_MUMBAI = 80001
 
-class IndexingErrorType(Enum):
-    RPC_ERROR = auto()
-    DB_ERROR = auto()
-    VALIDATION_ERROR = auto()
-    TIMEOUT_ERROR = auto()
-    UNKNOWN_ERROR = auto()
-    BLOCK_PROCESSING_ERROR = auto()
 
 # Updated Pydantic models
 class TransactionReceipt(BaseModel):
@@ -91,16 +77,6 @@ class BlockData(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
-class BlockRangeResult(BaseModel):
-    """Result model for block range indexing"""
-    status: IndexingStatus
-    blocks_processed: int
-    blocks_successful: int
-    blocks_failed: int
-    start_block: int
-    end_block: int
-    results: Any
-    error_counts: Dict[IndexingErrorType, int]
 
 class TransactionData(BaseModel):
     """Transaction data validation model."""
@@ -124,12 +100,3 @@ class TransactionData(BaseModel):
     receipt_contract_address: Optional[str]
     receipt_status: int
     receipt_effective_gas_price: Optional[int]
-
-class IndexingResult(BaseModel):
-    """Indexing result model."""
-    status: IndexingStatus
-    block_number: int
-    transactions_indexed: Optional[int]
-    error_type: Optional[IndexingErrorType]
-    error_message: Optional[str]
-    timestamp: datetime = None

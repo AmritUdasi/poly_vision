@@ -4,10 +4,6 @@ from poly_vision.services.blockchain_service import BlockchainService
 from poly_vision.services.database_service import DatabaseService
 from poly_vision.utils.config import load_config
 from poly_vision.utils.enums import (
-    BlockRangeResult,
-    IndexingResult,
-    IndexingStatus,
-    IndexingErrorType,
     BlockData,
     Transaction,
 )
@@ -24,99 +20,90 @@ db_service = DatabaseService(config.database)
 async def index_block(block_number: int):
     """Index a specific block from Polygon network."""
     try:
-        # Connect to database
-        await db_service.connect()
+        # Get block with transactions using blockchain service
+        block = await blockchain_service.get_block_with_transactions(block_number)
 
-        try:
-            # Get block with transactions using blockchain service
-            block = await blockchain_service.get_block_with_transactions(block_number)
+        # Create block data with all fields
+        block_data = BlockData(
+            block_number=block.number,
+            timestamp=block.timestamp,
+            hash=block.hash.hex(),
+            parent_hash=block.parentHash.hex(),
+            nonce=block.nonce.hex(),
+            sha3_uncles=(
+                block.sha3Uncles.hex() if hasattr(block, "sha3Uncles") else None
+            ),
+            logs_bloom=(
+                block.logsBloom.hex() if hasattr(block, "logsBloom") else None
+            ),
+            transactions_root=block.transactionsRoot.hex(),
+            state_root=block.stateRoot.hex(),
+            receipts_root=block.receiptsRoot.hex(),
+            miner=block.miner,
+            difficulty=0,
+            total_difficulty=0,
+            size=block.size,
+            extra_data=(
+                block.extraData.hex() if hasattr(block, "extraData") else None
+            ),
+            gas_limit=block.gasLimit,
+            gas_used=block.gasUsed,
+            transaction_count=len(block.transactions),
+            base_fee_per_gas=(
+                block.baseFeePerGas if hasattr(block, "baseFeePerGas") else None
+            ),
+        )
 
-            # Create block data with all fields
-            block_data = BlockData(
-                block_number=block.number,
-                timestamp=block.timestamp,
-                hash=block.hash.hex(),
-                parent_hash=block.parentHash.hex(),
-                nonce=block.nonce.hex(),
-                sha3_uncles=(
-                    block.sha3Uncles.hex() if hasattr(block, "sha3Uncles") else None
-                ),
-                logs_bloom=(
-                    block.logsBloom.hex() if hasattr(block, "logsBloom") else None
-                ),
-                transactions_root=block.transactionsRoot.hex(),
-                state_root=block.stateRoot.hex(),
-                receipts_root=block.receiptsRoot.hex(),
-                miner=block.miner,
-                difficulty=0,
-                total_difficulty=0,
-                size=block.size,
-                extra_data=(
-                    block.extraData.hex() if hasattr(block, "extraData") else None
-                ),  # Make extraData optional
-                gas_limit=block.gasLimit,
-                gas_used=block.gasUsed,
-                transaction_count=len(block.transactions),
-                base_fee_per_gas=(
-                    block.baseFeePerGas if hasattr(block, "baseFeePerGas") else None
-                ),
-            )
+        # Save block
+        await db_service.save_block(block_data)
 
-            # Save block
-            await db_service.save_block(block_data)
+        # Process transactions and traces
+        for tx in block.transactions:
+            tx_dict = dict(tx)
+            tx_hash = tx.hash.hex()
 
-            # Process transactions and traces
-            for tx in block.transactions:
-                tx_dict = dict(tx)
-                tx_hash = tx.hash.hex()
+            try:
+                traces = blockchain_service.w3.provider.make_request(
+                    "debug_traceTransaction", [tx_hash, {"tracer": "callTracer"}]
+                )
 
-                try:
-                    traces = blockchain_service.w3.provider.make_request(
-                        "debug_traceTransaction", [tx_hash, {"tracer": "callTracer"}]
-                    )
+                # Create transaction data
+                transaction_data = Transaction(
+                    hash=tx_hash,
+                    blockHash=tx_dict["blockHash"].hex(),
+                    blockNumber=tx_dict["blockNumber"],
+                    from_=tx_dict["from"],
+                    to=tx_dict["to"],
+                    gas=tx_dict["gas"],
+                    gasPrice=tx_dict["gasPrice"],
+                    maxFeePerGas=tx_dict.get("maxFeePerGas"),
+                    maxPriorityFeePerGas=tx_dict.get("maxPriorityFeePerGas"),
+                    input=(
+                        tx_dict["input"].hex()
+                        if isinstance(tx_dict["input"], bytes)
+                        else tx_dict["input"]
+                    ),
+                    nonce=tx_dict["nonce"],
+                    value=tx_dict["value"],
+                    type=tx_dict["type"],
+                    chainId=tx_dict["chainId"],
+                    v=tx_dict["v"],
+                    r=tx_dict["r"].hex(),
+                    s=tx_dict["s"].hex(),
+                    yParity=tx_dict.get("yParity"),
+                    gas_used=tx_dict["gas"],
+                    status=1,
+                    traces=traces.get("result", {}),
+                )
 
-                    # Create transaction data first
-                    transaction_data = Transaction(
-                        hash=tx_hash,
-                        blockHash=tx_dict["blockHash"].hex(),
-                        blockNumber=tx_dict["blockNumber"],
-                        from_=tx_dict["from"],
-                        to=tx_dict["to"],
-                        gas=tx_dict["gas"],
-                        gasPrice=tx_dict["gasPrice"],
-                        maxFeePerGas=tx_dict.get("maxFeePerGas"),
-                        maxPriorityFeePerGas=tx_dict.get("maxPriorityFeePerGas"),
-                        input=(
-                            tx_dict["input"].hex()
-                            if isinstance(tx_dict["input"], bytes)
-                            else tx_dict["input"]
-                        ),
-                        nonce=tx_dict["nonce"],
-                        value=tx_dict["value"],
-                        type=tx_dict["type"],
-                        chainId=tx_dict["chainId"],
-                        v=tx_dict["v"],
-                        r=tx_dict["r"].hex(),
-                        s=tx_dict["s"].hex(),
-                        yParity=tx_dict.get("yParity"),
-                        gas_used=tx_dict["gas"],
-                        status=1,
-                        traces=traces.get("result", {}),
-                    )
+                # Save transaction
+                await db_service.save_transaction(transaction_data)
 
-                    # Save transaction
-                    await db_service.save_transaction(transaction_data)
+            except Exception as e:
+                print(f"Error processing transaction {tx_hash}: {str(e)}")
+                continue
 
-                except Exception as e:
-                    print(f"Error processing transaction {tx_hash}: {str(e)}")
-                    continue
-
-            return block_number
-
-        except Exception as e:
-            raise Exception(f"Failed to process block {block_number}: {str(e)}")
-        finally:
-            await db_service.disconnect()
+        return block_number
 
     except Exception as e:
         raise Exception(f"Failed to index block {block_number}: {str(e)}")
@@ -128,85 +115,68 @@ async def index_block_range(
     end_block: int,
     batch_size: Optional[int] = None,
     max_concurrent: int = 5,
-) -> BlockRangeResult:
+):
     """Index a range of blocks from Polygon network."""
     if start_block > end_block:
         raise ValueError("start_block must be less than or equal to end_block")
 
-    batch_size = batch_size or config.batch_size
-    results: List[IndexingResult] = []
-    error_counts: Dict[IndexingErrorType, int] = {}
+    results = {
+        "blocks_processed": 0,
+        "blocks_successful": 0,
+        "blocks_failed": 0,
+        "failed_blocks": []
+    }
 
     try:
-        for block_number in range(start_block, end_block + 1, batch_size):
-            batch_end = min(block_number + batch_size, end_block + 1)
-            batch_tasks = [
-                index_block(block_num) for block_num in range(block_number, batch_end)
-            ]
+        # Connect to database once for the entire range
+        await db_service.connect()
 
-            # Process blocks in smaller concurrent batches
-            for i in range(0, len(batch_tasks), max_concurrent):
-                concurrent_batch = batch_tasks[i : i + max_concurrent]
-                try:
-                    batch_results = await asyncio.gather(
-                        *concurrent_batch, return_exceptions=True
-                    )
+        try:
+            current_block = start_block
+            while current_block <= end_block:
+                # Create batch of concurrent tasks
+                batch_tasks = []
+                for _ in range(max_concurrent):
+                    if current_block <= end_block:
+                        batch_tasks.append(index_block(current_block))
+                        current_block += 1
 
-                    # Process results and handle exceptions
-                    for result in batch_results:
-                        if isinstance(result, Exception):
-                            error_result = IndexingResult(
-                                status=IndexingStatus.ERROR,
-                                block_number=-1,
-                                transactions_indexed=0,
-                                error_type=IndexingErrorType.UNKNOWN_ERROR,
-                                error_message=str(result),
-                                timestamp=datetime.utcnow(),
-                            )
-                            results.append(error_result)
-                        else:
-                            results.append(result)
-                            if result.error_type:
-                                error_counts[result.error_type] = (
-                                    error_counts.get(result.error_type, 0) + 1
-                                )
+                if not batch_tasks:
+                    break
 
-                except Exception as e:
-                    print(f"Error processing batch: {str(e)}")
-                    continue
+                # Process the concurrent batch
+                batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
+                results["blocks_processed"] += len(batch_results)
 
-                await asyncio.sleep(0.1)
+                # Process results
+                for block_num, result in zip(
+                    range(current_block - len(batch_tasks), current_block), 
+                    batch_results
+                ):
+                    if isinstance(result, Exception):
+                        results["blocks_failed"] += 1
+                        results["failed_blocks"].append({
+                            "block": block_num,
+                            "error": str(result)
+                        })
+                        activity.logger.warning(
+                            f"Failed to process block {block_num}: {str(result)}"
+                        )
+                    else:
+                        results["blocks_successful"] += 1
+                        activity.logger.info(f"Successfully processed block {block_num}")
 
-        successful_blocks = sum(
-            1 for r in results if r.status == IndexingStatus.SUCCESS
-        )
+                await asyncio.sleep(0.1)  # Small delay between batches
 
-        failed_blocks = sum(1 for r in results if r.status == IndexingStatus.ERROR)
+            return results
 
-        return BlockRangeResult(
-            status=IndexingStatus.COMPLETED,
-            blocks_processed=len(results),
-            blocks_successful=successful_blocks,
-            blocks_failed=failed_blocks,
-            start_block=start_block,
-            end_block=end_block,
-            results=results,
-            error_counts=error_counts,
-        )
+        finally:
+            # Always disconnect when done
+            await db_service.disconnect()
 
     except Exception as e:
-        return BlockRangeResult(
-            status=IndexingStatus.ERROR,
-            blocks_processed=len(results),
-            blocks_successful=sum(
-                1 for r in results if r.status == IndexingStatus.SUCCESS
-            ),
-            blocks_failed=sum(1 for r in results if r.status == IndexingStatus.ERROR),
-            start_block=start_block,
-            end_block=end_block,
-            results=results,
-            error_counts=error_counts,
-        )
+        activity.logger.error(f"Error in index_block_range: {str(e)}")
+        raise e
 
 
 @activity.defn
