@@ -6,6 +6,7 @@ from poly_vision.utils.enums import (
     BlockData,
     Transaction,
 )
+import asyncio
 
 
 class DatabaseService:
@@ -137,10 +138,12 @@ class DatabaseService:
         """Save transaction traces to database."""
         try:
 
-            def process_trace(trace: Dict[str, Any], trace_address: str = "") -> Dict:
+            async def process_trace(
+                trace: Dict[str, Any], trace_address: str = ""
+            ) -> Dict:
                 return {
                     "transaction_hash": tx_hash,
-                    "transaction_index": 0,  # Add if available
+                    "transaction_index": 0,
                     "from_address": trace.get("from"),
                     "to_address": trace.get("to"),
                     "value": trace.get("value", "0"),
@@ -168,24 +171,26 @@ class DatabaseService:
                     ),
                     "block_number": block_number,
                     "block_hash": block_hash,
-                    "block_timestamp": datetime.fromtimestamp(
-                        block_number
-                    ),  # Need actual timestamp
+                    "block_timestamp": datetime.fromtimestamp(block_number),
                 }
 
             # Process main trace
-            trace_data = process_trace(traces)
+            trace_data = await process_trace(traces)
             await self.prisma.traces.create(data=trace_data)
 
-            # Process nested calls recursively
+            # Process nested calls concurrently
             async def save_nested_traces(parent_trace: Dict, parent_address: str):
+                tasks = []
                 for i, call in enumerate(parent_trace.get("calls", [])):
                     trace_address = (
                         f"{parent_address}-{i}" if parent_address else str(i)
                     )
-                    nested_trace = process_trace(call, trace_address)
-                    await self.prisma.traces.create(data=nested_trace)
-                    await save_nested_traces(call, trace_address)
+                    nested_trace = await process_trace(call, trace_address)
+                    tasks.append(self.prisma.traces.create(data=nested_trace))
+                    tasks.append(save_nested_traces(call, trace_address))
+
+                if tasks:
+                    await asyncio.gather(*tasks)
 
             await save_nested_traces(traces, "")
 
