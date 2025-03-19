@@ -26,31 +26,7 @@ class BlockchainService:
         """Fetch block data with transactions."""
         try:
             block = self.w3.eth.get_block(block_number, full_transactions=True)
-            # print(f'''blockkkkkkkkkkkkkkkkkkkkdatat{block=}''')
-            
-            # Keep timestamp as datetime object
-            timestamp = datetime.fromtimestamp(block.timestamp)
-            return block
-            return BlockData(
-                number=block_number,
-                hash=block.hash.hex(),
-                parent_hash=block.parentHash.hex(),
-                nonce=block.nonce.hex(),
-                timestamp=timestamp,  # Pass datetime object, not string
-                transactions_root=block.transactionsRoot.hex(),
-                state_root=block.stateRoot.hex(),
-                receipts_root=block.receiptsRoot.hex(),
-                miner=block.miner,
-                difficulty=block.difficulty,
-                total_difficulty=block.totalDifficulty,
-                size=block.size,
-                gas_limit=block.gasLimit,
-                gas_used=block.gasUsed,
-                base_fee_per_gas=(
-                    block.baseFeePerGas if hasattr(block, "baseFeePerGas") else None
-                ),
-                transaction_count=len(block.transactions),
-            )
+            return block  # Just return the raw block, since we're formatting it in the activity
         except Exception as e:
             raise Exception(f"Failed to fetch block {block_number}: {str(e)}")
 

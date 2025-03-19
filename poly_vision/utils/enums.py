@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from enum import Enum, auto
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -26,39 +26,81 @@ class IndexingErrorType(Enum):
     VALIDATION_ERROR = auto()
     TIMEOUT_ERROR = auto()
     UNKNOWN_ERROR = auto()
+    BLOCK_PROCESSING_ERROR = auto()
 
-# Pydantic models for validation
+# Updated Pydantic models
+class TransactionReceipt(BaseModel):
+    transaction_hash: str
+    transaction_index: int
+    block_hash: str
+    block_number: int
+    from_: str = Field(alias="from")
+    to: Optional[str]
+    cumulative_gas_used: int
+    gas_used: int
+    contract_address: Optional[str]
+    logs: List[Dict]
+    status: int
+    effective_gas_price: int
+
+class Transaction(BaseModel):
+    hash: str
+    blockHash: str
+    blockNumber: int
+    from_: str
+    to: Optional[str]
+    gas: int
+    gasPrice: int
+    maxFeePerGas: Optional[int]
+    maxPriorityFeePerGas: Optional[int]
+    input: str
+    nonce: int
+    value: int
+    type: int
+    chainId: int
+    v: int
+    r: str
+    s: str
+    yParity: Optional[int]
+    gas_used: int
+    status: int
+    traces: Optional[Dict]
+
 class BlockData(BaseModel):
-    """Block data validation model."""
-    number: int
+    block_number: int
+    timestamp: int
     hash: str
     parent_hash: str
     nonce: str
-    timestamp: datetime
+    sha3_uncles: Optional[str]
+    logs_bloom: Optional[str]
     transactions_root: str
     state_root: str
     receipts_root: str
     miner: str
-    difficulty: int
-    total_difficulty: int
+    difficulty: str  # Using str for Decimal
+    total_difficulty: str  # Using str for Decimal
     size: int
+    extra_data: Optional[str]
     gas_limit: int
     gas_used: int
-    base_fee_per_gas: Optional[int]
     transaction_count: int
+    base_fee_per_gas: Optional[int]
+    transactions: List[Transaction] = []
 
     class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat(),
-        }
+        arbitrary_types_allowed = True
 
-    def dict(self, *args, **kwargs):
-        # Convert all values to JSON serializable format
-        d = super().dict(*args, **kwargs)
-        # Convert any large integers to strings to avoid JSON serialization issues
-        d['difficulty'] = str(d['difficulty'])
-        d['total_difficulty'] = str(d['total_difficulty'])
-        return d
+class BlockRangeResult(BaseModel):
+    """Result model for block range indexing"""
+    status: IndexingStatus
+    blocks_processed: int
+    blocks_successful: int
+    blocks_failed: int
+    start_block: int
+    end_block: int
+    results: Any
+    error_counts: Dict[IndexingErrorType, int]
 
 class TransactionData(BaseModel):
     """Transaction data validation model."""

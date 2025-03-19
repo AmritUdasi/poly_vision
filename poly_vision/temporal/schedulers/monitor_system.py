@@ -29,7 +29,8 @@ async def create_blockchain_scheduler(client):
                 args=[10],  # batch size
             ),
             spec=ScheduleSpec(
-                intervals=[ScheduleIntervalSpec(every=timedelta(seconds=60))]
+                intervals=[ScheduleIntervalSpec(every=timedelta(minutes=1))]
+                
             ),
             policy=SchedulePolicy(
                 overlap=ScheduleOverlapPolicy.SKIP, catchup_window=timedelta(minutes=1)
