@@ -48,5 +48,11 @@ RUN python -m prisma generate
 EXPOSE 5000
 
 # Set the default command
-CMD python3 -m prisma migrate deploy && \
+CMD ./wait-for-it.sh \
+    "$POSTGRES_SEEDS" \
+    "$POSTGRES_USER" \
+    "$DB_PORT" \
+    "$POSTGRES_DB" \
+    "$POSTGRES_PASSWORD" \
+    -- python3 -m prisma migrate deploy && \
     /usr/bin/supervisord -c /app/poly_vision/temporal/supervisor/dev.conf
