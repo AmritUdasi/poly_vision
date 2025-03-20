@@ -2,37 +2,31 @@ from web3 import Web3
 from web3.middleware import geth_poa_middleware
 from typing import Optional
 from poly_vision.utils.config import BlockchainConfig
-from poly_vision.utils.enums import (
-    BlockData,
-)
-from datetime import datetime
-
 
 class BlockchainService:
     """Service for interacting with blockchain."""
 
     def __init__(self, config: BlockchainConfig):
         self.config = config
-        self.w3 = Web3(
-            Web3.HTTPProvider(
-                str(config.rpc_url), request_kwargs={"timeout": config.timeout}
-            )
-        )
+        self.w3 = Web3(Web3.HTTPProvider(config.rpc_url))
 
         # Add PoA middleware for Polygon
         self.w3.middleware_onion.inject(geth_poa_middleware, layer=0)
 
     async def get_block_with_transactions(self, block_number: int):
-        """Fetch block data with transactions."""
+        """Get block with full transaction objects."""
         try:
             block = self.w3.eth.get_block(block_number, full_transactions=True)
-            return block  # Just return the raw block, since we're formatting it in the activity
+            return block
         except Exception as e:
-            raise Exception(f"Failed to fetch block {block_number}: {str(e)}")
+            raise Exception(f"Failed to get block {block_number}: {str(e)}")
 
     async def get_latest_block_number(self) -> int:
-        """Get the latest block number from the chain."""
-        return self.w3.eth.block_number
+        """Get the latest block number from the blockchain."""
+        try:
+            return self.w3.eth.block_number
+        except Exception as e:
+            raise Exception(f"Failed to get latest block number: {str(e)}")
 
     async def setup_block_subscription(self, callback):
         """Setup websocket subscription for new blocks."""
