@@ -1,7 +1,7 @@
 from web3 import Web3
 from web3.middleware import geth_poa_middleware
-from typing import Optional
 from poly_vision.utils.config import BlockchainConfig
+
 
 class BlockchainService:
     """Service for interacting with blockchain."""
@@ -16,8 +16,7 @@ class BlockchainService:
     async def get_block_with_transactions(self, block_number: int):
         """Get block with full transaction objects."""
         try:
-            block = self.w3.eth.get_block(block_number, full_transactions=True)
-            return block
+            return self.w3.eth.get_block(block_number, full_transactions=True)
         except Exception as e:
             raise Exception(f"Failed to get block {block_number}: {str(e)}")
 
@@ -38,3 +37,13 @@ class BlockchainService:
         subscription = ws_w3.eth.subscribe("newHeads")
         subscription.watch(callback)
         return subscription
+
+    async def trace_block(self, block_number):
+        try:
+            trace_result = self.w3.provider.make_request(
+                "debug_traceBlockByNumber",
+                [hex(block_number), {"tracer": "callTracer"}],
+            )
+            return trace_result
+        except Exception as e:
+            raise Exception(f"Failed to trace block {block_number}: {str(e)}")

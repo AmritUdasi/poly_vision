@@ -58,10 +58,7 @@ async def index_block(block_number: int):
         await db_service.save_block(block_data)
 
         # Get all traces for the block in a single RPC call
-        #TODO:move this to blockchain service
-        trace_result = blockchain_service.w3.provider.make_request(
-            "debug_traceBlockByNumber", [hex(block.number), {"tracer": "callTracer"}]
-        )
+        trace_result = await blockchain_service.trace_block(block.number)
 
         transactions_batch = []
 
@@ -158,7 +155,7 @@ async def index_block_range(start_block: int, end_block: int) -> List[Dict]:
                     )
                 else:
                     # Wait before retrying (exponential backoff)
-                    await asyncio.sleep(2*retries)
+                    await asyncio.sleep(2 * retries)
                     continue
 
     return failed_blocks
