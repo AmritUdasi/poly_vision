@@ -4,7 +4,7 @@ from temporalio.common import RetryPolicy
 import asyncio
 
 with workflow.unsafe.imports_passed_through():
-    from poly_vision.temporal.activities.indexer_activity import (
+    from poly_vision.temporal.activities.indexer_activities import (
         index_block_range,
         get_latest_blocks,
     )
@@ -73,7 +73,7 @@ class BlockchainIndexerWorkflow:
             start_block = end_block + 1
 
             # Add small delay between batches
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)
 
         return {
             "status": "completed",

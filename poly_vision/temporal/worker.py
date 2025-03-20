@@ -2,7 +2,7 @@ import asyncio
 import time
 
 from poly_vision.services.database_service import DatabaseService
-from poly_vision.temporal.activities.indexer_activity import (
+from poly_vision.temporal.activities.indexer_activities import (
     get_latest_blocks,
     index_block,
     index_block_range,
