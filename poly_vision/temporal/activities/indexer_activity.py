@@ -57,7 +57,7 @@ async def index_block(block_number: int):
         await db_service.save_block(block_data)
 
         # Get all traces for the block in a single RPC call
-        trace_result =  blockchain_service.w3.provider.make_request(
+        trace_result = blockchain_service.w3.provider.make_request(
             "debug_traceBlockByNumber", [hex(block.number), {"tracer": "callTracer"}]
         )
 
@@ -128,80 +128,41 @@ async def index_block(block_number: int):
 
 
 @activity.defn
-async def index_block_range(
-    start_block: int,
-    end_block: int,
-    batch_size: Optional[int] = None,
-    max_concurrent: int = 5,
-):
-    """Index a range of blocks from Polygon network."""
-    if start_block > end_block:
-        raise ValueError("start_block must be less than or equal to end_block")
+async def index_block_range(start_block: int, end_block: int) -> List[Dict]:
+    """Index a range of blocks from the blockchain."""
+    failed_blocks = []
+    max_retries = 3  # Number of retries for each block
 
-    results = {
-        "blocks_processed": 0,
-        "blocks_successful": 0,
-        "blocks_failed": 0,
-        "blocks_skipped": 0,
-        "failed_blocks": [],
-    }
+    # Create a list of block numbers to process
+    blocks = list(range(start_block, end_block + 1))
 
-    try:
-        await db_service.connect()
+    # Process blocks one at a time
+    for block_number in blocks:
+        retries = 0
+        success = False
 
-        try:
-            current_block = start_block
-            while current_block <= end_block:
-                # Check which blocks in the next batch already exist
-                batch_blocks = range(
-                    current_block, min(current_block + max_concurrent, end_block + 1)
+        while retries < max_retries and not success:
+            try:
+                # Process block
+                await index_block(block_number)
+                activity.logger.info(f"Successfully processed block {block_number}")
+                success = True
+            except Exception as e:
+                retries += 1
+                activity.logger.error(
+                    f"Attempt {retries}/{max_retries} - Failed to process block {block_number}: {str(e)}"
                 )
-                batch_tasks = []
-
-                for block_num in batch_blocks:
-                    # if await db_service.block_exists(block_num):
-                    #     results["blocks_skipped"] += 1
-                    #     activity.logger.info(f"Block {block_num} already exists, skipping...")
-                    #     continue
-                    batch_tasks.append(index_block(block_num))
-
-                if not batch_tasks:
-                    current_block += max_concurrent
+                if retries == max_retries:
+                    failed_blocks.append({"block": block_number, "error": str(e)})
+                    activity.logger.error(
+                        f"Block {block_number} failed after {max_retries} attempts. Moving to next block."
+                    )
+                else:
+                    # Wait before retrying (exponential backoff)
+                    await asyncio.sleep(2**retries)
                     continue
 
-                # Process the concurrent batch
-                batch_results = await asyncio.gather(
-                    *batch_tasks, return_exceptions=True
-                )
-                results["blocks_processed"] += len(batch_results)
-
-                # Process results
-                for block_num, result in zip([b for b in batch_blocks], batch_results):
-                    if isinstance(result, Exception):
-                        results["blocks_failed"] += 1
-                        results["failed_blocks"].append(
-                            {"block": block_num, "error": str(result)}
-                        )
-                        activity.logger.warning(
-                            f"Failed to process block {block_num}: {str(result)}"
-                        )
-                    else:
-                        results["blocks_successful"] += 1
-                        activity.logger.info(
-                            f"Successfully processed block {block_num}"
-                        )
-
-                current_block += max_concurrent
-                await asyncio.sleep(0.1)  # Small delay between batches
-
-            return results
-
-        finally:
-            await db_service.disconnect()
-
-    except Exception as e:
-        activity.logger.error(f"Error in index_block_range: {str(e)}")
-        raise e
+    return failed_blocks
 
 
 @activity.defn

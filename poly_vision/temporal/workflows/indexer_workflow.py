@@ -13,7 +13,7 @@ with workflow.unsafe.imports_passed_through():
 @workflow.defn
 class BlockchainIndexerWorkflow:
     @workflow.run
-    async def run(self, batch_size: int = 10, max_concurrent: int = 5):
+    async def run(self, batch_size: int = 10, max_concurrent: int = 10):
         # Get latest block info
         latest_info = await workflow.execute_activity(
             get_latest_blocks,
@@ -39,7 +39,7 @@ class BlockchainIndexerWorkflow:
                 # Process a range of blocks
                 range_result = await workflow.execute_activity(
                     index_block_range,
-                    args=[start_block, end_block, None, max_concurrent],
+                    args=[start_block, end_block],
                     schedule_to_close_timeout=timedelta(minutes=5),
                     retry_policy=RetryPolicy(maximum_attempts=2),
                     start_to_close_timeout=timedelta(minutes=3),
@@ -48,7 +48,7 @@ class BlockchainIndexerWorkflow:
                 # Update statistics from the result
                 total_processed += range_result["blocks_processed"]
                 total_successful += range_result["blocks_successful"]
-                
+
                 if range_result["failed_blocks"]:
                     failed_blocks.extend(range_result["failed_blocks"])
                     workflow.logger.warn(
@@ -62,8 +62,12 @@ class BlockchainIndexerWorkflow:
                 )
 
             except Exception as e:
-                workflow.logger.error(f"Failed to process range {start_block}-{end_block}: {str(e)}")
-                failed_blocks.append({"block_range": [start_block, end_block], "error": str(e)})
+                workflow.logger.error(
+                    f"Failed to process range {start_block}-{end_block}: {str(e)}"
+                )
+                failed_blocks.append(
+                    {"block_range": [start_block, end_block], "error": str(e)}
+                )
 
             # Update start_block for next batch
             start_block = end_block + 1
